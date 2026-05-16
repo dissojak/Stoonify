@@ -5,19 +5,18 @@ import android.net.Uri;
 
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.util.UnstableApi;
-import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
-import androidx.media3.datasource.cache.CacheDataSink;
-import androidx.media3.datasource.cache.CacheDataSource;
-import androidx.media3.datasource.cache.SimpleCache;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.LoadControl;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
-
 import java.util.ArrayList;
 import java.util.List;
+
+
+
 
 @UnstableApi
 public class MusicPlayerManager {
@@ -26,6 +25,8 @@ public class MusicPlayerManager {
     private ExoPlayer exoPlayer;
     private List<Song> playlist = new ArrayList<>();
     private int currentIndex = -1;
+    private int retryCount = 0;
+    private static final int MAX_RETRIES = 1;
 
     public interface PlayerListener {
         void onSongChanged(Song song);
@@ -37,26 +38,20 @@ public class MusicPlayerManager {
     private List<PlayerListener> listeners = new ArrayList<>();
 
     private MusicPlayerManager(Context context) {
-        SimpleCache cache = MusicApp.getCache(context);
-        
-        DataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory()
-                .setAllowCrossProtocolRedirects(true);
-        
-        // Use a CacheDataSource that prefers cache and correctly handles partial data
-        CacheDataSource.Factory cacheDataSourceFactory = new CacheDataSource.Factory()
-                .setCache(cache)
-                .setUpstreamDataSourceFactory(httpDataSourceFactory)
-                .setCacheWriteDataSinkFactory(new CacheDataSink.Factory().setCache(cache))
-                .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
+        DefaultHttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(30000);
 
-        // Increase buffer to ensure more of the song is cached ahead of time
+        // Smaller buffers reduce startup latency on local streaming
         LoadControl loadControl = new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(60000, 120000, 1500, 2000)
+            .setBufferDurationsMs(10000, 30000, 250, 1000)
+            .setPrioritizeTimeOverSizeThresholds(true)
                 .build();
 
         exoPlayer = new ExoPlayer.Builder(context)
                 .setMediaSourceFactory(new DefaultMediaSourceFactory(context)
-                        .setDataSourceFactory(cacheDataSourceFactory))
+                .setDataSourceFactory(httpDataSourceFactory))
                 .setLoadControl(loadControl)
                 .build();
 
@@ -79,6 +74,7 @@ public class MusicPlayerManager {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
                 if (playbackState == Player.STATE_READY) {
+                    retryCount = 0;
                     for (PlayerListener listener : listeners) {
                         listener.onPrepared((int) exoPlayer.getDuration());
                     }
@@ -96,6 +92,14 @@ public class MusicPlayerManager {
                     listener.onPlaybackStatusChanged(isPlaying);
                 }
             }
+
+            @Override
+            public void onPlayerError(PlaybackException error) {
+                if (retryCount < MAX_RETRIES) {
+                    retryCount++;
+                    reloadCurrent();
+                }
+            }
         });
     }
 
@@ -106,6 +110,7 @@ public class MusicPlayerManager {
     public void playSong(int index) {
         if (index < 0 || index >= playlist.size()) return;
         currentIndex = index;
+        retryCount = 0;
         Song song = playlist.get(currentIndex);
         
         // Crucial: mediaId must be constant for the cache to recognize the file
@@ -114,6 +119,8 @@ public class MusicPlayerManager {
                 .setMediaId(song.getAudioUrl())
                 .build();
         
+        exoPlayer.stop();
+        exoPlayer.clearMediaItems();
         exoPlayer.setMediaItem(mediaItem);
         exoPlayer.prepare();
         exoPlayer.play();
@@ -182,5 +189,20 @@ public class MusicPlayerManager {
 
     public void removeListener(PlayerListener listener) {
         listeners.remove(listener);
+    }
+
+    private void reloadCurrent() {
+        if (currentIndex < 0 || currentIndex >= playlist.size()) return;
+        Song song = playlist.get(currentIndex);
+        MediaItem mediaItem = new MediaItem.Builder()
+                .setUri(Uri.parse(song.getAudioUrl()))
+                .setMediaId(song.getAudioUrl())
+                .build();
+
+        exoPlayer.stop();
+        exoPlayer.clearMediaItems();
+        exoPlayer.setMediaItem(mediaItem);
+        exoPlayer.prepare();
+        exoPlayer.play();
     }
 }
