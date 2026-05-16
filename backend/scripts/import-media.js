@@ -23,17 +23,45 @@ const songSchema = new mongoose.Schema(
 const Song = mongoose.models.Song || mongoose.model('Song', songSchema);
 
 const metadataByStem = {
+    'Cassö x Raye x D Block Europe - Prada (Official Video)': {
+        title: 'Prada',
+        artist: 'Cassö x Raye x D-Block Europe'
+    },
+    'Evermore - It\'s Too Late (Dirty South Remix)': {
+        title: "It's Too Late (Dirty South Remix)",
+        artist: 'Evermore'
+    },
+    'Haddaway - What Is Love (Official 4K Video)': {
+        title: 'What Is Love',
+        artist: 'Haddaway'
+    },
     'Home - Adriatique & Marino Canal - (feat. Delhia De France)': {
         title: 'Home',
         artist: 'Adriatique & Marino Canal feat. Delhia De France'
+    },
+    'Inna - Hot (Official Video HD)': {
+        title: 'Hot',
+        artist: 'Inna'
+    },
+    'La Bouche - Be My Lover (Official Video)': {
+        title: 'Be My Lover',
+        artist: 'La Bouche'
     },
     'Low Deep T Number 1': {
         title: 'Number 1',
         artist: 'Low Deep T'
     },
+    'Madonna - 4 Minutes feat. Justin Timberlake & Timbaland': {
+        title: '4 Minutes',
+        artist: 'Madonna feat. Justin Timberlake & Timbaland'
+    },
     'The Avener, Kadebostany - Castle In The Snow (Official Video)': {
         title: 'Castle In The Snow',
         artist: 'The Avener, Kadebostany'
+    },
+    'On The Floor': {
+        title: 'On The Floor',
+        artist: 'Jennifer Lopez feat. Pitbull'
     },
     'Yebba - Far Away (Audio) ft. A$AP Rocky': {
         title: 'Far Away',
