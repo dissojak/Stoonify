@@ -7,7 +7,11 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.cache.CacheDataSink;
+import androidx.media3.datasource.cache.CacheDataSource;
+import androidx.media3.datasource.cache.SimpleCache;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.LoadControl;
@@ -19,6 +23,8 @@ import java.util.List;
 
 
 @UnstableApi
+
+// this a sengleton player to ensure not hving 2 songs gonna play at the sane time
 public class MusicPlayerManager {
     private static final String TAG = "MusicPlayerManager";
     private static MusicPlayerManager instance;
@@ -38,10 +44,17 @@ public class MusicPlayerManager {
     private List<PlayerListener> listeners = new ArrayList<>();
 
     private MusicPlayerManager(Context context) {
+        SimpleCache cache = MusicApp.getCache(context);
         DefaultHttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15000)
             .setReadTimeoutMs(30000);
+
+        DataSource.Factory cacheDataSourceFactory = new CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(httpDataSourceFactory)
+            .setCacheWriteDataSinkFactory(new CacheDataSink.Factory().setCache(cache))
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
 
         // Smaller buffers reduce startup latency on local streaming
         LoadControl loadControl = new DefaultLoadControl.Builder()
@@ -51,7 +64,7 @@ public class MusicPlayerManager {
 
         exoPlayer = new ExoPlayer.Builder(context)
                 .setMediaSourceFactory(new DefaultMediaSourceFactory(context)
-                .setDataSourceFactory(httpDataSourceFactory))
+            .setDataSourceFactory(cacheDataSourceFactory))
                 .setLoadControl(loadControl)
                 .build();
 
